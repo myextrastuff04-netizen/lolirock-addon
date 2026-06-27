@@ -1,0 +1,17 @@
+{
+  "name": "lolirock-addon",
+  "version": "1.0.0",
+  "description": "LoliRock Stremio/Nuvio Addon",
+  "main": "api/server.js",
+  "scripts": {
+    "start": "node api/server.js",
+    "dev": "vercel dev"
+  },
+  "keywords": ["stremio", "nuvio", "addon", "lolirock"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}
