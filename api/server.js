@@ -4,6 +4,13 @@ const cors = require('cors');
 const app = express();
 
 app.use(cors());
+app.use(express.json());
+
+// Middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Query:`, req.query);
+  next();
+});
 
 // LoliRock metadata database
 const LOLIROCK_DATA = {
@@ -37,9 +44,10 @@ const YOUTUBE_EPISODES = [
  * Manifest Endpoint
  */
 app.get('/manifest.json', (req, res) => {
+  console.log('[MANIFEST] Serving manifest');
   res.json({
     id: 'com.lolirock.nuvio',
-    version: '1.0.1',
+    version: '1.0.2',
     name: 'LoliRock',
     description: 'LoliRock series streaming addon',
     logo: 'https://m.media-amazon.com/images/M/MV5BOTc5ZjAxNGEtYmU1Yi00MDVkLWE5MzAtMTA5NTJjZDEyOWJkXkEyXkFqcGdeQXVyNzg5OTk2OA@@._V1_SY1000_CR0,0,666,1000_AL_.jpg',
@@ -48,38 +56,36 @@ app.get('/manifest.json', (req, res) => {
       {
         name: 'catalog',
         types: ['series'],
-        idPrefixes: ['tt', 'lolirock']
-      },
-      {
-        name: 'stream',
-        types: ['series'],
-        idPrefixes: ['tt', 'lolirock']
+        idPrefixes: ['tt']
       },
       {
         name: 'meta',
         types: ['series'],
-        idPrefixes: ['tt', 'lolirock']
+        idPrefixes: ['tt']
+      },
+      {
+        name: 'stream',
+        types: ['series'],
+        idPrefixes: ['tt']
       }
     ],
     types: ['series'],
-    idPrefixes: ['tt', 'lolirock'],
+    idPrefixes: ['tt'],
     catalogs: [
       {
         type: 'series',
-        id: 'lolirock_all',
-        name: 'LoliRock Series'
+        id: 'lolirock',
+        name: 'LoliRock'
       }
     ]
   });
 });
 
 /**
- * Catalog Endpoint - Returns list of available series
+ * Catalog Endpoint
  */
-app.get('/catalog/series/:id.json', (req, res) => {
-  const { id } = req.params;
-  
-  // Return LoliRock in catalog
+app.get('/catalog/series/lolirock.json', (req, res) => {
+  console.log('[CATALOG] Serving LoliRock catalog');
   res.json({
     metas: [
       {
@@ -96,58 +102,58 @@ app.get('/catalog/series/:id.json', (req, res) => {
 });
 
 /**
- * Meta Endpoint - Returns detailed metadata with episodes
+ * Meta Endpoint
  */
-app.get('/meta/series/:id.json', (req, res) => {
-  const { id } = req.params;
-
-  if (id === 'tt4506998' || id === 'lolirock') {
-    return res.json({
-      meta: {
-        id: 'tt4506998',
-        type: 'series',
-        name: 'LoliRock',
-        poster: LOLIROCK_DATA.poster,
-        background: LOLIROCK_DATA.background,
-        description: LOLIROCK_DATA.description,
-        releaseInfo: LOLIROCK_DATA.releaseInfo,
-        runtime: LOLIROCK_DATA.runtime,
-        genres: LOLIROCK_DATA.genres,
-        cast: LOLIROCK_DATA.cast,
-        rating: LOLIROCK_DATA.rating,
-        videos: YOUTUBE_EPISODES.map(ep => ({
-          id: `${ep.season}:${ep.episode}`,
-          title: `S${ep.season}E${ep.episode} - ${ep.title}`,
-          season: ep.season,
-          episode: ep.episode,
-          released: '2014-01-01T00:00:00Z'
-        }))
-      }
-    });
-  }
-
-  res.json({ meta: null });
+app.get('/meta/series/tt4506998.json', (req, res) => {
+  console.log('[META] Serving meta for tt4506998');
+  res.json({
+    meta: {
+      id: 'tt4506998',
+      type: 'series',
+      name: 'LoliRock',
+      poster: LOLIROCK_DATA.poster,
+      background: LOLIROCK_DATA.background,
+      description: LOLIROCK_DATA.description,
+      releaseInfo: LOLIROCK_DATA.releaseInfo,
+      runtime: LOLIROCK_DATA.runtime,
+      genres: LOLIROCK_DATA.genres,
+      cast: LOLIROCK_DATA.cast,
+      imdbRating: LOLIROCK_DATA.rating,
+      videos: YOUTUBE_EPISODES.map(ep => ({
+        id: `${ep.season}:${ep.episode}`,
+        title: `S${ep.season}E${ep.episode} - ${ep.title}`,
+        season: ep.season,
+        episode: ep.episode,
+        released: '2014-01-01T00:00:00Z'
+      }))
+    }
+  });
 });
 
 /**
- * Stream Endpoint - Returns stream URLs
+ * Stream Endpoint
+ */
+app.get('/stream/series/tt4506998.json', (req, res) => {
+  console.log('[STREAM] Serving streams for tt4506998');
+  
+  const streams = YOUTUBE_EPISODES.map(ep => ({
+    title: `S${ep.season}E${ep.episode} - ${ep.title}`,
+    url: `https://www.youtube.com/watch?v=${ep.videoId}`,
+    season: ep.season,
+    episode: ep.episode
+  }));
+
+  res.json({ streams });
+});
+
+/**
+ * Individual episode stream endpoint
  */
 app.get('/stream/series/:id.json', (req, res) => {
   const { id } = req.params;
+  console.log(`[STREAM] Requested stream for: ${id}`);
 
-  // Handle full series request
-  if (id === 'tt4506998') {
-    const streams = YOUTUBE_EPISODES.map(ep => ({
-      title: `${ep.title}`,
-      url: `https://www.youtube.com/watch?v=${ep.videoId}`,
-      season: ep.season,
-      episode: ep.episode
-    }));
-
-    return res.json({ streams });
-  }
-
-  // Handle individual episode request (format: season:episode)
+  // Handle season:episode format
   const parts = id.split(':');
   if (parts.length === 2) {
     const season = parseInt(parts[0]);
@@ -155,6 +161,7 @@ app.get('/stream/series/:id.json', (req, res) => {
     const ep = YOUTUBE_EPISODES.find(e => e.season === season && e.episode === episode);
     
     if (ep) {
+      console.log(`[STREAM] Found episode S${season}E${episode}`);
       return res.json({
         streams: [
           {
@@ -166,30 +173,27 @@ app.get('/stream/series/:id.json', (req, res) => {
     }
   }
 
+  console.log(`[STREAM] No stream found for ${id}`);
   res.json({ streams: [] });
 });
 
 /**
- * Root endpoint
+ * Catch-all for debugging
  */
-app.get('/', (req, res) => {
-  res.json({ message: 'LoliRock Addon', version: '1.0.1' });
+app.get('*', (req, res) => {
+  console.log(`[DEBUG] Unhandled route: ${req.path}`);
+  res.status(404).json({ error: 'Not found', path: req.path });
 });
 
-/**
- * Health check
- */
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Server error' });
+app.post('*', (req, res) => {
+  console.log(`[DEBUG] POST request to: ${req.path}`);
+  res.status(404).json({ error: 'Not found' });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`LoliRock Addon Server running on port ${PORT}`);
+  console.log(`Manifest URL: https://lolirock-addon.vercel.app/manifest.json`);
+});
 
 module.exports = app;
